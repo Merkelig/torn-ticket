@@ -1,4 +1,5 @@
 ## https://github.com/good-place/chidi/blob/e5921eba7ed845c5664c34611bf3c727daf7a9c2/chd argparse example
+## https://janet.zulipchat.com/#narrow/channel/409517-help/topic/.E2.9C.94.20.60let.60.20macro/with/472020285 destruct match
 
 (import spork/argparse)
 (import jurl)
@@ -19,11 +20,14 @@
 ########################INFO#########################################
 
 
-## Constants ##
+## Global Constants ##
 (def maxHits 25000)
 (def addUnixEpocSeconds 330) ## "https://api.torn.com/v2/faction/{chainId}/chainreport?key={api}" does not count the bonus hit in report if(?) it's the first time the faction hit's the bonus(?).
                             ## Value 300 is added to end time from chainreport. 330 = 5.5 minuts.
-
+(def factionId 9524)
+(def resultTable @{})
+## Global Variables
+(var nextLink nil)
 ## Correct args-params
 (def arg-params
   [(string "Generate csv from chainreport containing username and chain hit number\n"
@@ -48,69 +52,142 @@
    "test-data" {:kind :option
                 :short "t"
               :required true
-              :help "Test data file that should be worked on"}])
+                :help "Test data file that should be worked on"}
+  "api-key" {:kind :option
+                :short "a"
+              :required true
+              :help "Api-key from torn"}])
 
 
 
 (defn map-attacks-tables [attacks-table]
-  (print (get attacks-table "chain"))
-  (var tmp_attacker-table (attacks-table "attacker"))
-  (if (= (get tmp_attacker-table "faction") ":null")
-    (print "====Found you====")
-    (print "Not Found"))
-  #(var tmp_faction-table (tmp_attacker-table "faction"))
-#  (pp tmp_attacker-table)
-  )
+   (var
+    {"id" attack-id
+     "code" attack-code
+     "started" attack-started
+     "ended" attack-ended
+     "attacker" attack-attacker
+     "defender" attack-defender
+     "result" attack-result
+     "respect_gain" attack-respect_gain
+     "respect_loss" attack-respect_loss
+     "chain" attack-chain
+     "is_interrupted" attack-is_interrupted
+     "is_stealthed" attack-is_stealthed
+     "is_raid" attack-is_raid
+     "is_ranked_war" attack-is_ranked_war
+     "modifiers" attack-modifiers
+    "finishing_hit_effects" attack-finishing_hit_effects} attacks-table)
+  (case (type attack-attacker)
+    :table (do
+             (var
+              {"id" attack-attacker-id
+               "name" attack-attacker-name
+               "level" attack-attacker-level
+               "faction" attack-attacker-faction} attack-attacker)
+             (case (type attack-attacker-faction)
+               :table (do
+                        (var
+                         {"id" attack-attacker-faction-id
+                          "name" attack-attacker-faction-name} attack-attacker-faction)
+                        (if (> attack-chain 0)
+                          (if (= attack-attacker-faction-id factionId)
+                            (put resultTable attack-chain attack-attacker-name)))))
+             )))
 
 (defn getData-test
-  [test-data]
-  (pp test-data)
+  [test-data api]
+  (pp api)
   (var tmpData (json/decode (slurp test-data)))        # Decode json into janet data structuress.
   (var tmpData_metadata (tmpData "_metadata"))         # Destruct toplevel table.
   (var tmpData_links (tmpData_metadata "links"))       # Destruct table.
   (var tmpData_next (tmpData_links "next"))            # Destruct table and get wanted next link.
-  (pp tmpData_next)
   (var tmpData_attacks (tmpData "attacks"))            # Destruct toplevel table
-  (print tmpData)
-  (print tmpData_metadata)
-  (print tmpData_links)
+  (pp tmpData_metadata)
+  (pp tmpData_links)
   (print tmpData_next)
-  (print tmpData_attacks)
-  (pp (in tmpData_attacks 1))
+  #(print tmpData_attacks)
+  #(pp (in tmpData_attacks 1))
   (map map-attacks-tables tmpData_attacks)
 #  (map pp tmpData_attacks)
-  #  (var tmpData_attack (tmpData "attacker"))
-#  (pp tmpData_attack)
-  )
+#  (var tmpData_attack (tmpData_attacks "attacker"))
+#  (print tmpData_attacks)
+  (pp resultTable)
+  (set nextLink (string tmpData_next "&key=" api))
+  (pp nextLink)
+)
 
 
 (defn getData
   [api startT endT]
-  (pp api)
-  (pp startT)
-  (pp endT)
+#  (pp api)
+ # (pp startT)
+ # (pp endT)
   (var api-string (string "https://api.torn.com/v2/faction/attacks?limit=100&sort=ASC&to=" endT "&from=" startT "&key=" api))
 #  (pp api-string)
   (var data (jurl/slurp api-string))
-# (var data (string "https://api.torn.com/v2/faction/attacks?limit=100&sort=ASC&to=" endT "&from=" startT "key="api))
+
+  (var tmpData (json/decode data))        # Decode json into janet data structuress.
+  (var tmpData_metadata (tmpData "_metadata"))         # Destruct toplevel table.
+  (var tmpData_links (tmpData_metadata "links"))       # Destruct table.
+  (var tmpData_next (tmpData_links "next"))            # Destruct table and get wanted next link.
+  (var tmpData_attacks (tmpData "attacks"))            # Destruct toplevel table
+#  (pp tmpData_metadata)
+#  (pp tmpData_links)
+#  (print tmpData_next)
+  (map map-attacks-tables tmpData_attacks)
+#  (pp resultTable)
+  (set nextLink (string tmpData_next "&key=" api))
+  (pp nextLink)
+  (var oldLink nil)
+  (while (not= nil nextLink)
+    (set oldLink nextLink)
+    (var dataNext (jurl/slurp nextLink))
+    (var tmpData (json/decode dataNext))        # Decode json into janet data structuress.
+    (var tmpData_metadata (tmpData "_metadata"))         # Destruct toplevel table.
+    (var tmpData_links (tmpData_metadata "links"))       # Destruct table.
+    (var tmpData_next (tmpData_links "next"))            # Destruct table and get wanted next link.
+    (var tmpData_attacks (tmpData "attacks"))            # Destruct toplevel table
+    #  (pp tmpData_metadata)
+    #  (pp tmpData_links)
+    #  (print tmpData_next)
+    (map map-attacks-tables tmpData_attacks)
+    #  (pp resultTable)
+
+    (set nextLink (string tmpData_next "&key=" api))
+    (pp nextLink)
+    (print (length resultTable))
+    (if (= oldLink nextLink)
+      (set nextLink nil))
+    (os/sleep 5)
+    )
+  (spit "./test-table.txt" (string "Chain number:Username" "\n") :a)
+  (loop [[chainNumber username] :in (pairs resultTable)]
+    (spit "./test-table.txt" (string chainNumber ":" username "\n") :a)
+    )
+  # (var data (string "https://api.torn.com/v2/faction/attacks?limit=100&sort=ASC&to=" endT "&from=" startT "key="api))
 #  (pp data)
 #(spit "./test-string.txt" data)
+
+
   )
+
+
 ## Correct main.
-# (defn main
-#   [&]
-#   (def res (argparse/argparse ;arg-params))
-#   (if res
-#     (getData (get res "api-key") (get res "start-time") (get res "end-time"))
-#     (os/exit 1))
-#   )
+ (defn main
+   [&]
+   (def res (argparse/argparse ;arg-params))
+   (if res
+     (getData (get res "api-key") (get res "start-time") (get res "end-time"))
+     (os/exit 1))
+   )
 
 ## Working on parsing main with test data.
-(defn main
-  [&]
-  (def res (argparse/argparse ;arg-params-test))
-  (if res
-    (getData-test (get res "test-data"))
-    (os/exit 1))
-)
+#(defn main
+#  [&]
+#  (def res (argparse/argparse ;arg-params-test))
+#  (if res
+#    (getData-test (get res "test-data") (get res "api-key"))
+#    (os/exit 1))
+#)
 
