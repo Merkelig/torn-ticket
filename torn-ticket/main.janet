@@ -5,7 +5,7 @@
 (import jurl)
 (import spork/json)
 ########################INFO#########################################
-# This script requires api key, start- and endtime in epoch unix time.
+# This script requires api key, start- and endtime in unix time.
 #
 # Each chainreport contains a unix time start- and endpoint.
 # These variables are available from the Torn's api v2, "https://api.torn.com/v2/faction/{chainId}/chainreport?key={api}".
@@ -16,19 +16,18 @@
 # This api endpoint will give faction detailed attack logs.
 
 ## Script needs to check who is the attacker in the logs.
-## The logs contains players attacking HT also.
 ########################INFO#########################################
 
 
-## Global Constants ##
+## Globals ##
 (def maxHits 25000)
-(def addUnixEpocSeconds 330) ## "https://api.torn.com/v2/faction/{chainId}/chainreport?key={api}" does not count the bonus hit in report if(?) it's the first time the faction hit's the bonus(?).
+(def addSeconds 330) ## "https://api.torn.com/v2/faction/{chainId}/chainreport?key={api}" does not count the bonus hit in report if(?) it's the first time the faction hit's the bonus(?).
                             ## Value 300 is added to end time from chainreport. 330 = 5.5 minuts.
-(def factionId 9524)
+
+(var factionId nil)
 (def resultTable @{})
-## Global Variables
 (var nextLink nil)
-## Correct args-params
+
 (def arg-params
   [(string "Generate csv from chainreport containing username and chain hit number\n"
            "Usage: janet torn-ticket.janet -a torn-api-key -s epoch-start-time -e epoch-end-time")
@@ -43,22 +42,11 @@
    "end-time" {:kind :option
                  :short "e"
                :required true
-               :help "Unix epoch end time"}])
-
-## Test arg-params
-(def arg-params-test
-  [(string "TMP: Generate csv from chainreport containing username and chain hit number\n"
-           "Usage: janet torn-ticket.janet -t test-data")
-   "test-data" {:kind :option
-                :short "t"
-              :required true
-                :help "Test data file that should be worked on"}
-  "api-key" {:kind :option
-                :short "a"
-              :required true
-              :help "Api-key from torn"}])
-
-
+               :help "Unix epoch end time"}
+   "faction-id" {:kind :option
+                 :short "f"
+               :required true
+               :help "Faction Id"}])
 
 (defn map-attacks-tables [attacks-table]
    (var
@@ -95,36 +83,11 @@
                             (put resultTable attack-chain attack-attacker-name)))))
              )))
 
-(defn getData-test
-  [test-data api]
-  (pp api)
-  (var tmpData (json/decode (slurp test-data)))        # Decode json into janet data structuress.
-  (var tmpData_metadata (tmpData "_metadata"))         # Destruct toplevel table.
-  (var tmpData_links (tmpData_metadata "links"))       # Destruct table.
-  (var tmpData_next (tmpData_links "next"))            # Destruct table and get wanted next link.
-  (var tmpData_attacks (tmpData "attacks"))            # Destruct toplevel table
-  (pp tmpData_metadata)
-  (pp tmpData_links)
-  (print tmpData_next)
-  #(print tmpData_attacks)
-  #(pp (in tmpData_attacks 1))
-  (map map-attacks-tables tmpData_attacks)
-#  (map pp tmpData_attacks)
-#  (var tmpData_attack (tmpData_attacks "attacker"))
-#  (print tmpData_attacks)
-  (pp resultTable)
-  (set nextLink (string tmpData_next "&key=" api))
-  (pp nextLink)
-)
-
-
 (defn getData
-  [api startT endT]
-#  (pp api)
- # (pp startT)
- # (pp endT)
+  [api startT endT factionIdVar]
+  (set factionId FactionIdVar)
+  (set endT (+ endT addSeconds))
   (var api-string (string "https://api.torn.com/v2/faction/attacks?limit=100&sort=ASC&to=" endT "&from=" startT "&key=" api))
-#  (pp api-string)
   (var data (jurl/slurp api-string))
 
   (var tmpData (json/decode data))        # Decode json into janet data structuress.
@@ -132,11 +95,7 @@
   (var tmpData_links (tmpData_metadata "links"))       # Destruct table.
   (var tmpData_next (tmpData_links "next"))            # Destruct table and get wanted next link.
   (var tmpData_attacks (tmpData "attacks"))            # Destruct toplevel table
-#  (pp tmpData_metadata)
-#  (pp tmpData_links)
-#  (print tmpData_next)
   (map map-attacks-tables tmpData_attacks)
-#  (pp resultTable)
   (set nextLink (string tmpData_next "&key=" api))
   (pp nextLink)
   (var oldLink nil)
@@ -148,12 +107,7 @@
     (var tmpData_links (tmpData_metadata "links"))       # Destruct table.
     (var tmpData_next (tmpData_links "next"))            # Destruct table and get wanted next link.
     (var tmpData_attacks (tmpData "attacks"))            # Destruct toplevel table
-    #  (pp tmpData_metadata)
-    #  (pp tmpData_links)
-    #  (print tmpData_next)
     (map map-attacks-tables tmpData_attacks)
-    #  (pp resultTable)
-
     (set nextLink (string tmpData_next "&key=" api))
     (pp nextLink)
     (print (length resultTable))
@@ -165,29 +119,13 @@
   (loop [[chainNumber username] :in (pairs resultTable)]
     (spit "./test-table.txt" (string chainNumber ":" username "\n") :a)
     )
-  # (var data (string "https://api.torn.com/v2/faction/attacks?limit=100&sort=ASC&to=" endT "&from=" startT "key="api))
-#  (pp data)
-#(spit "./test-string.txt" data)
-
-
   )
-
 
 ## Correct main.
  (defn main
    [&]
    (def res (argparse/argparse ;arg-params))
    (if res
-     (getData (get res "api-key") (get res "start-time") (get res "end-time"))
+     (getData (get res "api-key") (get res "start-time") (get res "end-time") (get res "faction-id")
      (os/exit 1))
    )
-
-## Working on parsing main with test data.
-#(defn main
-#  [&]
-#  (def res (argparse/argparse ;arg-params-test))
-#  (if res
-#    (getData-test (get res "test-data") (get res "api-key"))
-#    (os/exit 1))
-#)
-
