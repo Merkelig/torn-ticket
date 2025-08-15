@@ -38,11 +38,11 @@
    "start-time" {:kind :option
                    :short "s"
                  :required true
-                 :help "Unix epoch start time"}
+                 :help "Unix start time"}
    "end-time" {:kind :option
                  :short "e"
                :required true
-               :help "Unix epoch end time"}
+               :help "Unix end time"}
    "faction-id" {:kind :option
                  :short "f"
                :required true
