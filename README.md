@@ -8,3 +8,5 @@ Faction competition.
 Use chain hits as ticket numbers.
 ## How
 "janet main.janet -a {api} -s {StartTime } -e {Endtime} -f {faction id}"
+## Depends on
+spork and jurl
