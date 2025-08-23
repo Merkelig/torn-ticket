@@ -78,15 +78,17 @@
                         (var
                          {"id" attack-attacker-faction-id
                           "name" attack-attacker-faction-name} attack-attacker-faction)
+                        #(pp attack-attacker-faction-id)
+                        #(print (int/u64 factionId))
                         (if (> attack-chain 0)
-                          (if (= attack-attacker-faction-id factionId)
+                          (if (compare= attack-attacker-faction-id (int/u64 factionId))
                             (put resultTable attack-chain attack-attacker-name)))))
              )))
 
 (defn getData
-  [api startT endT factionIdVar]
-  (set factionId FactionIdVar)
-  (set endT (+ endT addSeconds))
+  [api startT endTVar factionIdVar]
+  (set factionId factionIdVar)
+  (var endT (+ (int/u64 endTVar) addSeconds))
   (var api-string (string "https://api.torn.com/v2/faction/attacks?limit=100&sort=ASC&to=" endT "&from=" startT "&key=" api))
   (var data (jurl/slurp api-string))
 
@@ -115,9 +117,9 @@
       (set nextLink nil))
     (os/sleep 5)
     )
-  (spit "./test-table.txt" (string "Chain number:Username" "\n") :a)
+  (spit "./test-table2.csv" (string "Chain number:Username" "\n") :a)
   (loop [[chainNumber username] :in (pairs resultTable)]
-    (spit "./test-table.txt" (string chainNumber ":" username "\n") :a)
+    (spit "./test-table2.csv" (string chainNumber ":" username "\n") :a)
     )
   )
 
@@ -126,6 +128,6 @@
    [&]
    (def res (argparse/argparse ;arg-params))
    (if res
-     (getData (get res "api-key") (get res "start-time") (get res "end-time") (get res "faction-id")
+     (getData (get res "api-key") (get res "start-time") (get res "end-time") (get res "faction-id"))
      (os/exit 1))
    )
